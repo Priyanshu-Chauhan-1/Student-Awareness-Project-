@@ -2,7 +2,7 @@
 Student Awareness Portal — a full-stack web Student Awareness Portal — a full-stack web app (Spring Boot + React/Vite + Ant Design) for managing student information and showcasing government schemes/awareness resources with REST APIs and a responsive dashboard.
 
 
-## Project Progress Summary (Day 1 to Day 3)
+## Project Progress Summary (Day 1 to Day 3) 
 
 ### Day 1 — Backend Setup (Spring Boot)
 - Initialized the **Spring Boot** backend project.
