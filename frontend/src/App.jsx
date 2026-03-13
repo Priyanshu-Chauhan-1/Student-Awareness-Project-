@@ -1,19 +1,22 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import AppLayout from './layout/AppLayout.jsx'
-import Dashboard from './pages/Dashboard.jsx'
-import Students from './pages/Students.jsx'
-import Schemes from './pages/Schemes.jsx'
+import { Routes, Route } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import DashboardPage from "./pages/DashboardPage";
+import StudentsPage from "./pages/StudentPage";
+import ResourcesPage from "./pages/ResourcePage";
+import HealthPage from "./pages/HealthPage";
+import NotFoundPage from "./pages/NotFoundPage";
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppLayout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/students" element={<Students />} />
-          <Route path="/schemes" element={<Schemes />} />
-        </Routes>
-      </AppLayout>
-    </BrowserRouter>
-  )
+    <div style={{ fontFamily: "system-ui, Arial, sans-serif" }}>
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/students" element={<StudentsPage />} />
+        <Route path="/resources" element={<ResourcesPage />} />
+        <Route path="/health" element={<HealthPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </div>
+  );
 }
