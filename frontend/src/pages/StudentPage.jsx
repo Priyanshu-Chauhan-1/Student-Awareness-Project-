@@ -1,13 +1,24 @@
-import { useEffect, useState } from "react";
-import { createStudent, deleteStudent, listStudents } from "../api/students";
+import { useEffect, useMemo, useState } from "react";
+import { createStudent, deleteStudent, listStudents, updateStudent } from "../api/students";
+
+const emptyForm = { name: "", email: "", department: "", year: "" };
 
 export default function StudentsPage() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
   const [error, setError] = useState("");
 
-  const [form, setForm] = useState({ name: "", email: "", department: "", year: "" });
+  // edit state
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+
+  const sorted = useMemo(() => {
+    return [...students].sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+  }, [students]);
 
   async function load() {
     setLoading(true);
@@ -26,24 +37,68 @@ export default function StudentsPage() {
     load();
   }, []);
 
+  function startCreate() {
+    setEditingId(null);
+    setForm(emptyForm);
+  }
+
+  function startEdit(student) {
+    setEditingId(student.id);
+    setForm({
+      name: student.name ?? "",
+      email: student.email ?? "",
+      department: student.department ?? "",
+      year: String(student.year ?? ""),
+    });
+  }
+
+  function validate(payload) {
+    if (!payload.name.trim()) return "Name is required";
+    if (!payload.email.trim()) return "Email is required";
+    if (!payload.department.trim()) return "Department is required";
+    if (payload.year === "" || payload.year === null || payload.year === undefined) return "Year is required";
+    const y = Number(payload.year);
+    if (!Number.isInteger(y) || y < 1 || y > 6) return "Year must be a number between 1 and 6";
+    return "";
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     setSaving(true);
     setError("");
-    try {
-      const payload = {
-        name: form.name.trim(),
-        email: form.email.trim(),
-        department: form.department.trim(),
-        year: Number(form.year),
-      };
 
-      if (!payload.name || !payload.email || !payload.department || !payload.year) {
-        throw new Error("All fields are required");
+    const payload = {
+      name: form.name,
+      email: form.email,
+      department: form.department,
+      year: Number(form.year),
+    };
+
+    const msg = validate(payload);
+    if (msg) {
+      setSaving(false);
+      setError(msg);
+      return;
+    }
+
+    try {
+      if (editingId === null) {
+        await createStudent({
+          name: payload.name.trim(),
+          email: payload.email.trim(),
+          department: payload.department.trim(),
+          year: payload.year,
+        });
+      } else {
+        await updateStudent(editingId, {
+          name: payload.name.trim(),
+          email: payload.email.trim(),
+          department: payload.department.trim(),
+          year: payload.year,
+        });
       }
 
-      await createStudent(payload);
-      setForm({ name: "", email: "", department: "", year: "" });
+      startCreate();
       await load();
     } catch (e) {
       setError(e.message);
@@ -53,12 +108,16 @@ export default function StudentsPage() {
   }
 
   async function onDelete(id) {
+    setDeletingId(id);
     setError("");
     try {
       await deleteStudent(id);
       setStudents((prev) => prev.filter((s) => s.id !== id));
+      if (editingId === id) startCreate();
     } catch (e) {
       setError(e.message);
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -74,9 +133,16 @@ export default function StudentsPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 16, marginTop: 12 }}>
         <form onSubmit={onSubmit} style={{ border: "1px solid #ddd", padding: 12, borderRadius: 10 }}>
-          <h3 style={{ marginTop: 0 }}>Add Student</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ margin: 0 }}>{editingId === null ? "Add Student" : `Edit Student (#${editingId})`}</h3>
+            {editingId !== null ? (
+              <button type="button" onClick={startCreate} style={{ padding: "6px 10px" }}>
+                Cancel
+              </button>
+            ) : null}
+          </div>
 
-          <div style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
             <input
               placeholder="Name"
               value={form.name}
@@ -96,14 +162,14 @@ export default function StudentsPage() {
               style={{ padding: 8 }}
             />
             <input
-              placeholder="Year (1-4)"
+              placeholder="Year (1-6)"
               value={form.year}
               onChange={(e) => setForm((p) => ({ ...p, year: e.target.value }))}
               style={{ padding: 8 }}
             />
 
             <button disabled={saving} style={{ padding: 10 }}>
-              {saving ? "Saving..." : "Save"}
+              {saving ? "Saving..." : editingId === null ? "Save" : "Update"}
             </button>
           </div>
         </form>
@@ -119,7 +185,7 @@ export default function StudentsPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
             <thead>
               <tr>
-                {["ID", "Name", "Email", "Dept", "Year", "Action"].map((h) => (
+                {["ID", "Name", "Email", "Dept", "Year", "Actions"].map((h) => (
                   <th key={h} style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 8 }}>
                     {h}
                   </th>
@@ -128,22 +194,31 @@ export default function StudentsPage() {
             </thead>
 
             <tbody>
-              {students.map((s) => (
-                <tr key={s.id}>
+              {sorted.map((s) => (
+                <tr key={s.id} style={editingId === s.id ? { background: "#f8fafc" } : undefined}>
                   <td style={{ padding: 8, borderBottom: "1px solid #f5f5f5" }}>{s.id}</td>
                   <td style={{ padding: 8, borderBottom: "1px solid #f5f5f5" }}>{s.name}</td>
                   <td style={{ padding: 8, borderBottom: "1px solid #f5f5f5" }}>{s.email}</td>
                   <td style={{ padding: 8, borderBottom: "1px solid #f5f5f5" }}>{s.department}</td>
                   <td style={{ padding: 8, borderBottom: "1px solid #f5f5f5" }}>{s.year}</td>
                   <td style={{ padding: 8, borderBottom: "1px solid #f5f5f5" }}>
-                    <button onClick={() => onDelete(s.id)} style={{ padding: "6px 10px" }}>
-                      Delete
-                    </button>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => startEdit(s)} style={{ padding: "6px 10px" }}>
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => onDelete(s.id)}
+                        disabled={deletingId === s.id}
+                        style={{ padding: "6px 10px" }}
+                      >
+                        {deletingId === s.id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
 
-              {!loading && students.length === 0 ? (
+              {!loading && sorted.length === 0 ? (
                 <tr>
                   <td colSpan={6} style={{ padding: 10 }}>
                     No students found.
