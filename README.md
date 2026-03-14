@@ -7,7 +7,7 @@ Student Awareness Portal — a full-stack web Student Awareness Portal — a ful
 ### Day 1 — Backend Setup (Spring Boot)
 - Initialized the **Spring Boot** backend project.
 - Created and tested a basic health-check endpoint:
-  - **GET `/health`** → returns `OK`
+  - **GET `/health`** → returns `OK` 
 - Verified the backend runs successfully on:
   - `http://localhost:8080`
 
