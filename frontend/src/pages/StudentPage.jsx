@@ -16,15 +16,25 @@ export default function StudentsPage() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
 
-  const sorted = useMemo(() => {
-    return [...students].sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
-  }, [students]);
+  // Search/filter/sort state (will be sent to backend)
+  const [q, setQ] = useState("");
+  const [dept, setDept] = useState("ALL");
+  const [year, setYear] = useState("ALL");
+  const [sortBy, setSortBy] = useState("id"); // id | name | email | department | year
+  const [sortDir, setSortDir] = useState("asc"); // asc | desc
 
-  async function load() {
+  async function load(override = {}) {
     setLoading(true);
     setError("");
     try {
-      const data = await listStudents();
+      const data = await listStudents({
+        q,
+        department: dept,
+        year,
+        sortBy,
+        sortDir,
+        ...override,
+      });
       setStudents(Array.isArray(data) ? data : []);
     } catch (e) {
       setError(e.message);
@@ -33,9 +43,11 @@ export default function StudentsPage() {
     }
   }
 
+  // Load whenever filters/sort change (server-side)
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, dept, year, sortBy, sortDir]);
 
   function startCreate() {
     setEditingId(null);
@@ -99,7 +111,7 @@ export default function StudentsPage() {
       }
 
       startCreate();
-      await load();
+      await load(); // reload with current query params
     } catch (e) {
       setError(e.message);
     } finally {
@@ -121,6 +133,24 @@ export default function StudentsPage() {
     }
   }
 
+  // For dropdown options, we can still compute from CURRENT list returned by backend
+  const departments = useMemo(() => {
+    const set = new Set();
+    students.forEach((s) => {
+      const d = String(s.department ?? "").trim();
+      if (d) set.add(d);
+    });
+    return ["ALL", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [students]);
+
+  const years = useMemo(() => {
+    const set = new Set();
+    students.forEach((s) => {
+      if (s.year !== null && s.year !== undefined && String(s.year).trim() !== "") set.add(Number(s.year));
+    });
+    return ["ALL", ...Array.from(set).sort((a, b) => a - b)];
+  }, [students]);
+
   return (
     <div style={{ padding: 16 }}>
       <h2>Students</h2>
@@ -132,6 +162,7 @@ export default function StudentsPage() {
       ) : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 16, marginTop: 12 }}>
+        {/* Left: Create/Edit Form */}
         <form onSubmit={onSubmit} style={{ border: "1px solid #ddd", padding: 12, borderRadius: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h3 style={{ margin: 0 }}>{editingId === null ? "Add Student" : `Edit Student (#${editingId})`}</h3>
@@ -174,12 +205,64 @@ export default function StudentsPage() {
           </div>
         </form>
 
+        {/* Right: List + Search/Filter/Sort controls */}
         <div style={{ border: "1px solid #ddd", padding: 12, borderRadius: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h3 style={{ margin: 0 }}>Student List</h3>
-            <button onClick={load} disabled={loading} style={{ padding: "6px 10px" }}>
+            <button onClick={() => load()} disabled={loading} style={{ padding: "6px 10px" }}>
               {loading ? "Loading..." : "Refresh"}
             </button>
+          </div>
+
+          {/* Controls (these now trigger backend calls via useEffect) */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.2fr 0.8fr 0.6fr 0.8fr 0.6fr",
+              gap: 10,
+              marginTop: 12,
+              alignItems: "center",
+            }}
+          >
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search name or email..."
+              style={{ padding: 8 }}
+            />
+
+            <select value={dept} onChange={(e) => setDept(e.target.value)} style={{ padding: 8 }}>
+              {departments.map((d) => (
+                <option key={d} value={d}>
+                  {d === "ALL" ? "All Depts" : d}
+                </option>
+              ))}
+            </select>
+
+            <select value={year} onChange={(e) => setYear(e.target.value)} style={{ padding: 8 }}>
+              {years.map((y) => (
+                <option key={y} value={String(y)}>
+                  {String(y) === "ALL" ? "All Years" : `Year ${y}`}
+                </option>
+              ))}
+            </select>
+
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ padding: 8 }}>
+              <option value="id">Sort: ID</option>
+              <option value="name">Sort: Name</option>
+              <option value="email">Sort: Email</option>
+              <option value="department">Sort: Dept</option>
+              <option value="year">Sort: Year</option>
+            </select>
+
+            <select value={sortDir} onChange={(e) => setSortDir(e.target.value)} style={{ padding: 8 }}>
+              <option value="asc">Asc</option>
+              <option value="desc">Desc</option>
+            </select>
+          </div>
+
+          <div style={{ marginTop: 10, color: "#334155" }}>
+            Showing <b>{students.length}</b>
           </div>
 
           <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
@@ -194,7 +277,7 @@ export default function StudentsPage() {
             </thead>
 
             <tbody>
-              {sorted.map((s) => (
+              {students.map((s) => (
                 <tr key={s.id} style={editingId === s.id ? { background: "#f8fafc" } : undefined}>
                   <td style={{ padding: 8, borderBottom: "1px solid #f5f5f5" }}>{s.id}</td>
                   <td style={{ padding: 8, borderBottom: "1px solid #f5f5f5" }}>{s.name}</td>
@@ -218,10 +301,10 @@ export default function StudentsPage() {
                 </tr>
               ))}
 
-              {!loading && sorted.length === 0 ? (
+              {!loading && students.length === 0 ? (
                 <tr>
                   <td colSpan={6} style={{ padding: 10 }}>
-                    No students found.
+                    No students match your filters.
                   </td>
                 </tr>
               ) : null}

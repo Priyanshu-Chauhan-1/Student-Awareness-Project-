@@ -1,7 +1,20 @@
 import { getJson, postJson } from "./http";
 
-export function listStudents() {
-  return getJson("/api/students");
+function buildQuery(params = {}) {
+  const sp = new URLSearchParams();
+
+  if (params.q) sp.set("q", params.q);
+  if (params.department && params.department !== "ALL") sp.set("department", params.department);
+  if (params.year && params.year !== "ALL") sp.set("year", String(params.year));
+  if (params.sortBy) sp.set("sortBy", params.sortBy);
+  if (params.sortDir) sp.set("sortDir", params.sortDir);
+
+  const qs = sp.toString();
+  return qs ? `?${qs}` : "";
+}
+
+export function listStudents(params) {
+  return getJson(`/api/students${buildQuery(params)}`);
 }
 
 export function createStudent(student) {

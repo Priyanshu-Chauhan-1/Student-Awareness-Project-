@@ -1,5 +1,6 @@
 package com.student_awareness_portal.portal.student_awareness_portal.api.student;
 
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -16,12 +17,44 @@ public class StudentController {
         this.repo = repo;
     }
 
+    // Day 5: List with query params (q, department, year, sortBy, sortDir)
     @GetMapping
-    public List<Student> all() {
-        return repo.findAll();
+    public List<Student> all(
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "department", required = false) String department,
+            @RequestParam(name = "year", required = false) Integer year,
+            @RequestParam(name = "sortBy", defaultValue = "id") String sortBy,
+            @RequestParam(name = "sortDir", defaultValue = "asc") String sortDir) {
+        Sort.Direction dir = "desc".equalsIgnoreCase(sortDir) ? Sort.Direction.DESC : Sort.Direction.ASC;
+
+        // allow only safe sort fields
+        String safeSortBy = switch (sortBy) {
+            case "id", "name", "email", "department", "year" -> sortBy;
+            default -> "id";
+        };
+
+        Sort sort = Sort.by(dir, safeSortBy);
+
+        // Priority: q search (name OR email)
+        if (q != null && !q.trim().isEmpty()) {
+            String qq = q.trim();
+            return repo.findByNameContainingIgnoreCaseOrEmailContainingIgnoreCase(qq, qq, sort);
+        }
+
+        // department + year filters
+        if (department != null && !department.trim().isEmpty() && year != null) {
+            return repo.findByDepartmentAndYear(department.trim(), year, sort);
+        }
+        if (department != null && !department.trim().isEmpty()) {
+            return repo.findByDepartment(department.trim(), sort);
+        }
+        if (year != null) {
+            return repo.findByYear(year, sort);
+        }
+
+        return repo.findAll(sort);
     }
 
-    // Optional but useful
     @GetMapping("/{id}")
     public Student getOne(@PathVariable Long id) {
         return repo.findById(id)
@@ -56,7 +89,6 @@ public class StudentController {
         return repo.save(s);
     }
 
-    // Day 4: Update existing student
     @PutMapping("/{id}")
     public Student update(@PathVariable Long id, @RequestBody Student incoming) {
         Student existing = repo.findById(id)
@@ -77,7 +109,6 @@ public class StudentController {
 
         String newEmail = incoming.getEmail().trim();
 
-        // If email is changed, ensure it's unique
         if (!newEmail.equalsIgnoreCase(existing.getEmail()) && repo.existsByEmail(newEmail)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "email already exists");
         }
